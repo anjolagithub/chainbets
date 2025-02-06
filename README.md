@@ -166,12 +166,13 @@ graph TD
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## License
-
-MIT License - see LICENSE.md for details
 
 ## Acknowledgments
 
 - OpenZeppelin for secure contract implementations
 - Ancient8 Chain for L2 infrastructure
 - Foundry for development framework
+
+## License
+
+MIT License - see LICENSE.md for details
