@@ -8,6 +8,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IBettingPool} from "./interfaces/IBettingPool.sol";
 
+interface ICommunityHub {
+    function updateUserActivity(address user, uint256 amount) external;
+    function processWinnings(address user, uint256 amount) external;
+}
+
 contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
@@ -16,10 +21,18 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     uint256 public protocolFee = 250; // 2.5% in basis points
     uint256 public nextMatchId = 1;
 
+    // Integration contracts
+    address public tournament;
+    address public communityHub;
+
     // Storage
     mapping(uint256 => Match) public matches;
     mapping(uint256 => mapping(address => Bet)) public userBets;
     mapping(address => uint256[]) public userBetHistory;
+
+    // Events
+    event TournamentSet(address indexed tournament);
+    event CommunityHubSet(address indexed communityHub);
 
     // Modifiers
     modifier matchExists(uint256 matchId) {
@@ -40,6 +53,19 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     constructor(address _bettingToken) Ownable(msg.sender) {
         require(_bettingToken != address(0), "Invalid token address");
         bettingToken = IERC20(_bettingToken);
+    }
+
+    // Integration setters
+    function setTournament(address _tournament) external onlyOwner {
+        require(_tournament != address(0), "Invalid tournament address");
+        tournament = _tournament;
+        emit TournamentSet(_tournament);
+    }
+
+    function setCommunityHub(address _communityHub) external onlyOwner {
+        require(_communityHub != address(0), "Invalid community hub address");
+        communityHub = _communityHub;
+        emit CommunityHubSet(_communityHub);
     }
 
     // Match Management Functions
@@ -105,7 +131,34 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
 
         userBetHistory[msg.sender].push(matchId);
 
+        // Notify community hub if set
+        if (communityHub != address(0)) {
+            ICommunityHub(communityHub).updateUserActivity(msg.sender, amount);
+        }
+
         emit BetPlaced(matchId, msg.sender, amount, prediction);
+    }
+
+    // Tournament betting function
+    function placeTournamentBet(
+        address user,
+        uint256 matchId,
+        uint8 prediction
+    ) external matchExists(matchId) matchNotStarted(matchId) {
+        require(msg.sender == tournament, "Only tournament");
+        
+        // Record bet without token transfer
+        userBets[matchId][user] = Bet({
+            user: user,
+            matchId: matchId,
+            amount: 0, // Tournament bets don't lock tokens
+            prediction: prediction,
+            claimed: false
+        });
+
+        userBetHistory[user].push(matchId);
+
+        emit BetPlaced(matchId, user, 0, prediction);
     }
 
     function finalizeMatch(
@@ -144,6 +197,11 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
 
         // Transfer winnings
         bettingToken.safeTransfer(msg.sender, winnings);
+
+        // Notify community hub if set
+        if (communityHub != address(0)) {
+            ICommunityHub(communityHub).processWinnings(msg.sender, winnings);
+        }
 
         emit WinningsClaimed(matchId, msg.sender, winnings);
     }

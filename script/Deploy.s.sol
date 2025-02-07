@@ -1,33 +1,56 @@
+// script/Deploy.s.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Script} from "forge-std/Script.sol";
-import {Test} from "forge-std/Test.sol";
-import {console2} from "forge-std/console2.sol";
+import {Script, console2} from "forge-std/Script.sol";
 import {BettingPool} from "../src/BettingPool.sol";
-import {BetManager} from "../src/BetManager.sol";
+import {Tournament} from "../src/Tournament.sol";
+import {CommunityHub} from "../src/CommunityHub.sol";
 
 contract DeployChainBets is Script {
-    function run() external {
-        // Get deployment variables from environment
+    function setUp() public {}
+
+    function run() public {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address opTokenAddress = vm.envAddress("OP_TOKEN_ADDRESS");
-        address oracleAddress = vm.envAddress("ORACLE_ADDRESS");
 
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy main contracts
         BettingPool bettingPool = new BettingPool(opTokenAddress);
-        BetManager betManager = new BetManager(address(bettingPool));
+        console2.log("BettingPool deployed at:", address(bettingPool));
 
-        // Setup initial configuration
+        Tournament tournament = new Tournament(
+            address(bettingPool),
+            opTokenAddress
+        );
+        console2.log("Tournament deployed at:", address(tournament));
+
+        CommunityHub communityHub = new CommunityHub(opTokenAddress);
+        console2.log("CommunityHub deployed at:", address(communityHub));
+
+        // Setup contract connections
+        bettingPool.setTournament(address(tournament));
+        bettingPool.setCommunityHub(address(communityHub));
+
+        // Set initial protocol fee
         bettingPool.setProtocolFee(250); // 2.5%
-        betManager.setOracle(oracleAddress, true);
 
         vm.stopBroadcast();
 
-        // Log deployed addresses
-        console2.log("Deployed BettingPool at:", address(bettingPool));
-        console2.log("Deployed BetManager at:", address(betManager));
+        // Save deployment info
+        string memory deploymentInfo = string(
+            abi.encodePacked(
+                "Deployment timestamp: ",
+                vm.toString(block.timestamp),
+                "\nBettingPool: ",
+                vm.toString(address(bettingPool)),
+                "\nTournament: ",
+                vm.toString(address(tournament)),
+                "\nCommunityHub: ",
+                vm.toString(address(communityHub))
+            )
+        );
+        vm.writeFile("./deployments.txt", deploymentInfo);
     }
 }
