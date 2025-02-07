@@ -3,5 +3,10 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = ["@openzeppelin=lib/openzeppelin-contracts"]
+[rpc_endpoints]
+ancient8 = "${ANCIENT8_RPC_URL}"
+
+[etherscan]
+ancient8 = { key = "${ETHERSCAN_API_KEY}", url = "https://scanv2-testnet.ancient8.gg/api" }
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
