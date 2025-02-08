@@ -170,7 +170,7 @@ graph TD
 
 ## License
 
-MIT License - see LICENSE.md for details
+MIT License - see LICENSE.md for details.
 
 ## Acknowledgments
 
