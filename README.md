@@ -1,11 +1,20 @@
 # ChainBets - Decentralized Esports Betting Platform
 
-ChainBets is a decentralized betting platform built on Ancient8 Chain, enabling users to place bets on esports matches using A8 tokens.
+ChainBets is a decentralized betting platform built on Ancient8 Chain, enabling users to place bets on esports matches using WETH tokens.
+
+## Deployed Contracts (Ancient8 Testnet)
+
+- **BettingPool**: `0x792f1fB27F6B61f030469acdCf397c8444d6BF2B`
+- **Tournament**: `0xD8f3dd02dee5a98b067c2F90062ca70A99fc15D8`
+- **CommunityHub**: `0x8e65D16397142D7a3bD88f90dE7Ee85a8BC34F99`
+- **WETH Token**: `0x4200000000000000000000000000000000000006`
 
 ## Features
 
-- **Decentralized Betting**: Place bets using Ancient8 OP tokens
+- **Decentralized Betting**: Place bets using WETH tokens
 - **Match Management**: Create and manage esports matches
+- **Tournament System**: Participate in tournaments with multiple matches
+- **Community Features**: Earn rewards and track activity
 - **Automated Payouts**: Smart contract handles winnings distribution
 - **Protocol Fee System**: Configurable fee structure (default 2.5%)
 - **Emergency Controls**: Pause functionality and admin controls
@@ -13,7 +22,7 @@ ChainBets is a decentralized betting platform built on Ancient8 Chain, enabling 
 
 ## Smart Contracts
 
-The platform consists of two main contracts:
+The platform consists of three main contracts:
 
 ### BettingPool.sol
 - Core betting functionality
@@ -23,10 +32,17 @@ The platform consists of two main contracts:
 - Protocol fee management
 - Emergency controls
 
-### BetManager.sol
-- Match metadata management
-- Oracle management
-- Additional match data storage
+### Tournament.sol
+- Tournament creation and management
+- Entry fee handling
+- Match predictions
+- Prize pool distribution
+- Score tracking
+
+### CommunityHub.sol
+- Community activity tracking
+- User rewards
+- Platform engagement metrics
 
 ## Technical Stack
 
@@ -34,6 +50,7 @@ The platform consists of two main contracts:
 - **Language**: Solidity ^0.8.24
 - **Dependencies**: OpenZeppelin Contracts
 - **Chain**: Ancient8 Chain (L2)
+- **Network**: Ancient8 Testnet (Chain ID: 28122024)
 
 ## Getting Started
 
@@ -52,23 +69,14 @@ cd chainbets
 forge install
 ```
 
-### Build
+### Build and Test
 
 ```bash
+# Build
 forge build
-```
 
-### Test
-
-```bash
-# Run all tests
-forge test
-
-# Run with verbosity
+# Test
 forge test -vvv
-
-# Run with gas reporting
-forge test --gas-report
 ```
 
 ## Deployment
@@ -76,31 +84,17 @@ forge test --gas-report
 1. Create `.env` file:
 ```env
 PRIVATE_KEY=your_private_key_here
-ANCIENT8_RPC_URL=your_ancient8_rpc_url
-ANCIENT8_CHAIN_ID=2375
-OP_TOKEN_ADDRESS=ancient8_op_token_address
-ORACLE_ADDRESS=your_oracle_address
-ETHERSCAN_API_KEY=your_etherscan_api_key
+ANCIENT8_RPC_URL=https://rpcv2-testnet.ancient8.gg
+ANCIENT8_CHAIN_ID=28122024
+OP_TOKEN_ADDRESS=0x4200000000000000000000000000000000000006
 ```
 
 2. Deploy contracts:
 ```bash
 forge script script/Deploy.s.sol:DeployChainBets \
-    --rpc-url $ANCIENT8_RPC_URL \
+    --rpc-url https://rpcv2-testnet.ancient8.gg \
     --broadcast \
-    --verify \
     -vvvv
-```
-
-3. Verify contracts:
-```bash
-forge verify-contract <BETTING_POOL_ADDRESS> src/BettingPool.sol:BettingPool \
-    --constructor-args $(cast abi-encode "constructor(address)" $OP_TOKEN_ADDRESS) \
-    --chain-id 2375
-
-forge verify-contract <BET_MANAGER_ADDRESS> src/BetManager.sol:BetManager \
-    --constructor-args $(cast abi-encode "constructor(address)" $BETTING_POOL_ADDRESS) \
-    --chain-id 2375
 ```
 
 ## Contract Interaction
@@ -125,6 +119,20 @@ function placeBet(
 ) external
 ```
 
+### Join Tournament
+```solidity
+function joinTournament(uint256 tournamentId) external
+```
+
+### Submit Prediction
+```solidity
+function submitPrediction(
+    uint256 tournamentId,
+    uint256 matchId,
+    uint8 prediction
+) external
+```
+
 ### Claim Winnings
 ```solidity
 function claimWinnings(uint256 matchId) external
@@ -143,36 +151,29 @@ function claimWinnings(uint256 matchId) external
 ```mermaid
 graph TD
     A[User] -->|Place Bet| B[BettingPool]
-    B -->|Store Metadata| C[BetManager]
-    D[Admin] -->|Create Match| B
-    E[Oracle] -->|Update Results| B
-    B -->|Distribute| F[Winnings]
+    A -->|Join Tournament| C[Tournament]
+    A -->|Track Activity| D[CommunityHub]
+    B -->|Match Results| C
+    C -->|Update Points| D
+    B -->|Distribute| E[Winnings]
 ```
 
 ## Testing Coverage
 
 - Match creation and management
 - Betting mechanics
+- Tournament functionality
+- Community features
 - Winnings calculation and distribution
 - Protocol fee handling
 - Emergency scenarios
-- Oracle interactions
 
-## Contributing
+## License
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
+MIT License - see LICENSE.md for details
 
 ## Acknowledgments
 
 - OpenZeppelin for secure contract implementations
 - Ancient8 Chain for L2 infrastructure
 - Foundry for development framework
-
-## License
-
-MIT License - see LICENSE.md for details
