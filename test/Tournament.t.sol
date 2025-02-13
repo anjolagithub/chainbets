@@ -6,6 +6,7 @@ import {Tournament} from "../src/Tournament.sol";
 import {BettingPool} from "../src/BettingPool.sol";
 import {MockOPToken} from "./mocks/MockOPToken.sol";
 import {ITournament} from "../src/interfaces/ITournament.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract TournamentTest is Test {
     Tournament public tournament;
@@ -16,7 +17,7 @@ contract TournamentTest is Test {
     address public user1 = address(2);
     address public user2 = address(3);
 
-    uint256 constant INITIAL_BALANCE = 1000 * 10**18;
+    uint256 constant INITIAL_BALANCE = 10000 * 10**18;
     uint256 constant ENTRY_FEE = 10 * 10**18;
 
     event TournamentCreated(uint256 indexed id, string name, uint256 startTime);
@@ -33,9 +34,26 @@ contract TournamentTest is Test {
         // Setup pool
         pool.setTournament(address(tournament));
         
-        // Fund users
+        // Transfer tokens to users
         token.transfer(user1, INITIAL_BALANCE);
         token.transfer(user2, INITIAL_BALANCE);
+        
+        // Create matches for testing
+        pool.createMatch(
+            "Test Match 1", 
+            block.timestamp + 1 hours, 
+            block.timestamp + 2 hours, 
+            1e18,  // minBet
+            100e18 // maxBet
+        );
+        pool.createMatch(
+            "Test Match 2", 
+            block.timestamp + 2 hours, 
+            block.timestamp + 3 hours, 
+            1e18,  // minBet
+            100e18 // maxBet
+        );
+        
         vm.stopPrank();
     }
 
@@ -53,7 +71,7 @@ contract TournamentTest is Test {
         tournament.createTournament(
             "Test Tournament",
             block.timestamp + 1 hours,
-            block.timestamp + 2 hours,
+            block.timestamp + 3 hours,
             ENTRY_FEE,
             matchIds
         );
@@ -81,9 +99,6 @@ contract TournamentTest is Test {
     function testPredictionSubmission() public {
         // Setup tournament and match
         testTournamentCreation();
-        vm.startPrank(admin);
-        pool.createMatch("Test Match", block.timestamp + 1 hours, block.timestamp + 2 hours, 0, 100e18);
-        vm.stopPrank();
 
         // Join and predict
         vm.startPrank(user1);
@@ -108,6 +123,9 @@ contract TournamentTest is Test {
         vm.startPrank(admin);
         pool.finalizeMatch(1, 1); // Team A wins
 
+        // Advance time to ensure tournament has ended
+        vm.warp(block.timestamp + 24 hours);
+
         // Update scores
         address[] memory players = new address[](1);
         players[0] = user1;
@@ -130,8 +148,10 @@ contract TournamentTest is Test {
         matchIds[0] = 1;
         matchIds[1] = 2;
 
-        // Test invalid tournament creation
+        // Test invalid tournament creation scenarios
         vm.startPrank(admin);
+        
+        // Invalid start time
         vm.expectRevert("Invalid start time");
         tournament.createTournament(
             "Test Tournament",
@@ -141,7 +161,7 @@ contract TournamentTest is Test {
             matchIds
         );
 
-        // Test empty matches array
+        // Empty matches array
         uint256[] memory emptyMatchIds = new uint256[](0);
         vm.expectRevert("No matches provided");
         tournament.createTournament(
@@ -152,7 +172,7 @@ contract TournamentTest is Test {
             emptyMatchIds
         );
 
-        // Create valid tournament for further tests
+        // Create a valid tournament for further tests
         tournament.createTournament(
             "Test Tournament",
             block.timestamp + 1 hours,
@@ -167,18 +187,20 @@ contract TournamentTest is Test {
         vm.expectRevert("ERC20: insufficient allowance");
         tournament.joinTournament(0);
 
-        // Test double joining
+        // Approve and join
         token.approve(address(tournament), ENTRY_FEE);
         tournament.joinTournament(0);
+
+        // Test double joining
         vm.expectRevert("Already joined");
         tournament.joinTournament(0);
 
-        // Test prediction without joining
+        // Test prediction without joining (use user2)
         vm.startPrank(user2);
         vm.expectRevert("Not participant");
         tournament.submitPrediction(0, 1, 1);
 
-        // Test reward claiming without score
+        // Test reward claiming scenarios
         vm.warp(block.timestamp + 3 hours);
         vm.expectRevert("No rewards to claim");
         tournament.claimTournamentRewards(0);

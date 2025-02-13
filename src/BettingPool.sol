@@ -17,9 +17,9 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     // State variables
-    IERC20 public immutable bettingToken; // Ancient8 OP token
-    uint256 public protocolFee = 250; // 2.5% in basis points
-    uint256 public nextMatchId = 1;
+    IERC20 public immutable bettingToken;
+    uint256 public protocolFee;
+    uint256 public nextMatchId;
 
     // Integration contracts
     address public tournament;
@@ -53,6 +53,17 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     constructor(address _bettingToken) Ownable(msg.sender) {
         require(_bettingToken != address(0), "Invalid token address");
         bettingToken = IERC20(_bettingToken);
+        protocolFee = 250; // Initialize at 2.5%
+        nextMatchId = 1;   // Initialize at 1
+    }
+
+    // Explicit getter functions
+    function getNextMatchId() public view returns (uint256) {
+        return nextMatchId;
+    }
+
+    function getProtocolFee() public view returns (uint256) {
+        return protocolFee;
     }
 
     // Integration setters
@@ -139,7 +150,6 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         emit BetPlaced(matchId, msg.sender, amount, prediction);
     }
 
-    // Tournament betting function
     function placeTournamentBet(
         address user,
         uint256 matchId,
