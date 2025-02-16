@@ -86,7 +86,7 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         uint256 endTime,
         uint256 minBet,
         uint256 maxBet
-    ) external override onlyOwner {
+    ) external override {
         require(bytes(name).length > 0, "Invalid name");
         require(startTime > block.timestamp, "Invalid start time");
         require(endTime > startTime, "Invalid end time");
