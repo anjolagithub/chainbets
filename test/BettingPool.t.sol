@@ -34,6 +34,8 @@ contract BettingPoolTest is Test {
     event ProtocolFeeUpdated(uint256 newFee);
     event TournamentSet(address indexed tournament);
     event CommunityHubSet(address indexed communityHub);
+    event EmergencyWithdraw(address token, uint256 amount);
+
 
     function setUp() public {
         vm.startPrank(admin);
@@ -55,12 +57,27 @@ contract BettingPoolTest is Test {
         vm.stopPrank();
     }
 
-    function testMatchCreationFailures() public {
-        vm.startPrank(admin);
+    function testMatchCreation() public {
         uint256 startTime = block.timestamp + 1 hours;
         uint256 endTime = startTime + 2 hours;
 
-        // Test various match creation failures
+        vm.expectEmit(true, true, true, true);
+        emit MatchCreated(1, "Test Match", startTime);
+        pool.createMatch("Test Match", startTime, endTime, 1e18, 100e18);
+
+        IBettingPool.Match memory match_ = pool.getMatch(1);
+        assertEq(match_.id, 1);
+        assertEq(match_.name, "Test Match");
+        assertEq(match_.startTime, startTime);
+        assertEq(match_.endTime, endTime);
+        assertEq(match_.minBet, 1e18);
+        assertEq(match_.maxBet, 100e18);
+    }
+
+    function testMatchCreationFailures() public {
+        uint256 startTime = block.timestamp + 1 hours;
+        uint256 endTime = startTime + 2 hours;
+
         vm.expectRevert("Invalid name");
         pool.createMatch("", startTime, endTime, 1e18, 100e18);
 
@@ -75,17 +92,6 @@ contract BettingPoolTest is Test {
 
         vm.expectRevert("Invalid bet limits");
         pool.createMatch("Test Match", startTime, endTime, 100e18, 1e18);
-        vm.stopPrank();
-
-        // Non-admin attempt
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector, 
-                address(user1)
-            )
-        );
-        vm.prank(user1);
-        pool.createMatch("Test Match", startTime, endTime, 1e18, 100e18);
     }
 
     function testProtocolFeeManagement() public {
@@ -109,6 +115,48 @@ contract BettingPoolTest is Test {
         );
         vm.prank(user1);
         pool.setProtocolFee(300);
+    }
+
+    function testIntegrationManagement() public {
+        vm.startPrank(admin);
+        address newTournament = address(6);
+        address newCommunityHub = address(7);
+
+        vm.expectEmit(true, true, true, true);
+        emit TournamentSet(newTournament);
+        pool.setTournament(newTournament);
+        assertEq(address(pool.tournament()), newTournament);
+
+        vm.expectEmit(true, true, true, true);
+        emit CommunityHubSet(newCommunityHub);
+        pool.setCommunityHub(newCommunityHub);
+        assertEq(address(pool.communityHub()), newCommunityHub);
+
+        vm.expectRevert("Invalid tournament address");
+        pool.setTournament(address(0));
+
+        vm.expectRevert("Invalid community hub address");
+        pool.setCommunityHub(address(0));
+        vm.stopPrank();
+
+        // Non-admin attempts
+        vm.startPrank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector, 
+                address(user1)
+            )
+        );
+        pool.setTournament(newTournament);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector, 
+                address(user1)
+            )
+        );
+        pool.setCommunityHub(newCommunityHub);
+        vm.stopPrank();
     }
 
     function testPauseUnpause() public {
@@ -142,37 +190,51 @@ contract BettingPoolTest is Test {
         vm.stopPrank();
     }
 
+    function testBettingSystem() public {
+        setupMatch();
+
+        // Test bet placement
+        vm.startPrank(user1);
+        token.approve(address(pool), BET_AMOUNT);
+        
+        vm.expectEmit(true, true, true, true);
+        emit BetPlaced(1, user1, BET_AMOUNT, 1);
+        pool.placeBet(1, BET_AMOUNT, 1);
+
+        IBettingPool.Bet memory bet = pool.getUserBet(1, user1);
+        assertEq(bet.amount, BET_AMOUNT);
+        assertEq(bet.prediction, 1);
+        vm.stopPrank();
+
+        // Test bet failures
+        vm.startPrank(user2);
+        vm.expectRevert("Match does not exist");
+        pool.placeBet(2, BET_AMOUNT, 1);
+
+        token.approve(address(pool), BET_AMOUNT);
+        vm.warp(block.timestamp + 2 hours);
+        vm.expectRevert("Match already started");
+        pool.placeBet(1, BET_AMOUNT, 1);
+        vm.stopPrank();
+    }
+
     function testFinalizationFailures() public {
         setupMatchWithBets();
 
         // Before match end
-        vm.prank(admin);
         vm.expectRevert("Match not ended");
         pool.finalizeMatch(1, 1);
 
         vm.warp(block.timestamp + 4 hours);
         
-        // Non-admin finalization
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                Ownable.OwnableUnauthorizedAccount.selector, 
-                address(user1)
-            )
-        );
-        vm.prank(user1);
-        pool.finalizeMatch(1, 1);
-
         // Invalid winner
-        vm.prank(admin);
         vm.expectRevert("Invalid winner");
         pool.finalizeMatch(1, 3);
 
         // Finalize correctly
-        vm.prank(admin);
         pool.finalizeMatch(1, 1);
 
         // Double finalization
-        vm.prank(admin);
         vm.expectRevert("Match already finalized");
         pool.finalizeMatch(1, 1);
     }
@@ -180,7 +242,7 @@ contract BettingPoolTest is Test {
     function testWinningsClaims() public {
         setupMatchWithBets();
         vm.warp(block.timestamp + 4 hours);
-        vm.prank(admin);
+        
         pool.finalizeMatch(1, 1);
 
         vm.startPrank(user1);
@@ -208,7 +270,6 @@ contract BettingPoolTest is Test {
 
         // Finalize with different winner
         vm.warp(block.timestamp + 4 hours);
-        vm.prank(admin);
         pool.finalizeMatch(1, 2);
 
         // Losing bet claim
@@ -256,7 +317,6 @@ contract BettingPoolTest is Test {
 
         // Process winnings
         vm.warp(block.timestamp + 4 hours);
-        vm.prank(admin);
         pool.finalizeMatch(1, 1);
 
         vm.prank(user1);
@@ -287,9 +347,45 @@ contract BettingPoolTest is Test {
         assertTrue(potentialWinnings > 0);
     }
 
+    function testEmergencyWithdraw() public {
+        // Send some tokens to the contract
+        vm.startPrank(user1);
+        token.transfer(address(pool), BET_AMOUNT);
+        vm.stopPrank();
+
+        // Test emergency withdraw by non-admin
+        vm.prank(user1);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                Ownable.OwnableUnauthorizedAccount.selector, 
+                address(user1)
+            )
+        );
+        pool.emergencyWithdraw(address(token));
+
+        // Test emergency withdraw by admin
+        vm.startPrank(admin);
+        uint256 balanceBefore = token.balanceOf(admin);
+        
+        vm.expectEmit(true, true, true, true);
+        emit EmergencyWithdraw(address(token), BET_AMOUNT);
+        pool.emergencyWithdraw(address(token));
+        
+        uint256 balanceAfter = token.balanceOf(admin);
+        assertEq(balanceAfter - balanceBefore, BET_AMOUNT);
+
+        // Test withdraw with no balance
+        vm.expectRevert("No balance to withdraw");
+        pool.emergencyWithdraw(address(token));
+
+        // Test withdraw with invalid token
+        vm.expectRevert("Invalid token");
+        pool.emergencyWithdraw(address(0));
+        vm.stopPrank();
+    }
+
     // Helper Functions
     function setupMatch() internal {
-        vm.prank(admin);
         pool.createMatch(
             "Test Match",
             block.timestamp + 1 hours,

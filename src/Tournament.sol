@@ -1,16 +1,17 @@
-// src/Tournament.sol
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ITournament} from "./interfaces/ITournament.sol";
 import {IBettingPool} from "./interfaces/IBettingPool.sol";
 
-contract Tournament is ITournament, Ownable, ReentrancyGuard {
+contract Tournament is ITournament, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
+    bytes32 public constant TOURNAMENT_ADMIN = keccak256("TOURNAMENT_ADMIN");
 
     IBettingPool public immutable bettingPool;
     IERC20 public immutable token;
@@ -22,9 +23,30 @@ contract Tournament is ITournament, Ownable, ReentrancyGuard {
     
     uint256 public nextTournamentId;
 
-    constructor(address _bettingPool, address _token) Ownable(msg.sender) {
+    constructor(address _bettingPool, address _token) {
+        require(_bettingPool != address(0), "Invalid betting pool");
+        require(_token != address(0), "Invalid token");
+        
         bettingPool = IBettingPool(_bettingPool);
         token = IERC20(_token);
+        
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(TOURNAMENT_ADMIN, msg.sender);
+    }
+
+    modifier tournamentActive(uint256 tournamentId) {
+        require(tournaments[tournamentId].isActive, "Tournament not active");
+        _;
+    }
+
+    modifier tournamentNotStarted(uint256 tournamentId) {
+        require(block.timestamp < tournaments[tournamentId].startTime, "Tournament started");
+        _;
+    }
+
+    modifier tournamentEnded(uint256 tournamentId) {
+        require(block.timestamp > tournaments[tournamentId].endTime, "Tournament not ended");
+        _;
     }
 
     function createTournament(
@@ -33,7 +55,8 @@ contract Tournament is ITournament, Ownable, ReentrancyGuard {
         uint256 endTime,
         uint256 entryFee,
         uint256[] calldata matchIds
-    ) external onlyOwner {
+    ) external onlyRole(TOURNAMENT_ADMIN) {
+        require(bytes(name).length > 0, "Invalid name");
         require(startTime > block.timestamp, "Invalid start time");
         require(endTime > startTime, "Invalid end time");
         require(matchIds.length > 0, "No matches provided");
@@ -53,11 +76,15 @@ contract Tournament is ITournament, Ownable, ReentrancyGuard {
         emit TournamentCreated(tournamentId, name, startTime);
     }
 
-    function joinTournament(uint256 tournamentId) external nonReentrant {
-        TournamentInfo storage tournament = tournaments[tournamentId];
-        require(tournament.isActive, "Tournament not active");
-        require(block.timestamp < tournament.startTime, "Tournament started");
+    function joinTournament(uint256 tournamentId) 
+        external 
+        nonReentrant 
+        tournamentActive(tournamentId)
+        tournamentNotStarted(tournamentId)
+    {
         require(!participants[tournamentId][msg.sender], "Already joined");
+
+        TournamentInfo storage tournament = tournaments[tournamentId];
 
         // Transfer entry fee
         if (tournament.entryFee > 0) {
@@ -73,12 +100,15 @@ contract Tournament is ITournament, Ownable, ReentrancyGuard {
         uint256 tournamentId,
         uint256 matchId,
         uint8 prediction
-    ) external {
-        TournamentInfo storage tournament = tournaments[tournamentId];
-        require(tournament.isActive, "Tournament not active");
+    ) 
+        external 
+        tournamentActive(tournamentId)
+        tournamentNotStarted(tournamentId)
+    {
         require(participants[tournamentId][msg.sender], "Not participant");
-        require(block.timestamp < tournament.startTime, "Tournament started");
+        require(prediction == 1 || prediction == 2, "Invalid prediction");
         
+        TournamentInfo storage tournament = tournaments[tournamentId];
         bool validMatch = false;
         for (uint256 i = 0; i < tournament.matchIds.length; i++) {
             if (tournament.matchIds[i] == matchId) {
@@ -89,47 +119,108 @@ contract Tournament is ITournament, Ownable, ReentrancyGuard {
         require(validMatch, "Invalid match");
 
         predictions[tournamentId][msg.sender][matchId] = prediction;
+        
+        // Submit prediction to betting pool
+        bettingPool.placeTournamentBet(msg.sender, matchId, prediction);
+        
         emit PredictionSubmitted(tournamentId, matchId, msg.sender);
     }
 
-    function claimTournamentRewards(uint256 tournamentId) external nonReentrant {
-        TournamentInfo storage tournament = tournaments[tournamentId];
-        require(tournament.isActive, "Tournament not active");
-        require(block.timestamp > tournament.endTime, "Tournament not ended");
+    function claimTournamentRewards(uint256 tournamentId) 
+        external 
+        nonReentrant 
+        tournamentActive(tournamentId)
+        tournamentEnded(tournamentId)
+    {
         require(participants[tournamentId][msg.sender], "Not participant");
         
         uint256 playerScore = scores[tournamentId][msg.sender];
         require(playerScore > 0, "No rewards to claim");
 
+        TournamentInfo storage tournament = tournaments[tournamentId];
+        
         // Calculate reward based on score and prize pool
-        uint256 reward = (tournament.prizePool * playerScore) / getTotalScore(tournamentId);
+        uint256 totalScore = getTotalScore(tournamentId);
+        require(totalScore > 0, "No total score");
+        
+        uint256 reward = (tournament.prizePool * playerScore) / totalScore;
+        require(reward > 0, "No reward");
+        
         tournament.prizePool -= reward;
+        
+        // Reset player score to prevent multiple claims
+        scores[tournamentId][msg.sender] = 0;
         
         // Transfer reward
         token.safeTransfer(msg.sender, reward);
     }
 
-    function getTotalScore(uint256 tournamentId) public view returns (uint256) {
-        uint256 total = 0;
+    // Admin functions
+    function finalizeTournament(uint256 tournamentId, address[] calldata winners) 
+        external 
+        onlyRole(TOURNAMENT_ADMIN) 
+        tournamentActive(tournamentId)
+        tournamentEnded(tournamentId)
+    {
         TournamentInfo storage tournament = tournaments[tournamentId];
-        for (uint256 i = 0; i < tournament.matchIds.length; i++) {
-            // Sum up scores for each match
-            total += scores[tournamentId][msg.sender];
-        }
-        return total;
+        tournament.isActive = false;
+        emit TournamentFinalized(tournamentId, winners);
     }
 
-    // Admin function to update scores after matches
     function updateScores(
         uint256 tournamentId,
         uint256 matchId,
         address[] calldata players,
         uint256[] calldata matchScores
-    ) external onlyOwner {
+    ) external onlyRole(TOURNAMENT_ADMIN) tournamentActive(tournamentId) {
         require(players.length == matchScores.length, "Length mismatch");
         
+        // Validate match belongs to tournament
+        TournamentInfo storage tournament = tournaments[tournamentId];
+        bool validMatch = false;
+        for (uint256 i = 0; i < tournament.matchIds.length; i++) {
+            if (tournament.matchIds[i] == matchId) {
+                validMatch = true;
+                break;
+            }
+        }
+        require(validMatch, "Invalid match");
+        
+        // Update scores
         for (uint256 i = 0; i < players.length; i++) {
+            require(participants[tournamentId][players[i]], "Invalid participant");
             scores[tournamentId][players[i]] += matchScores[i];
         }
+    }
+
+    // View functions
+    function getTotalScore(uint256 tournamentId) public view returns (uint256) {
+        uint256 total = 0;
+        TournamentInfo storage tournament = tournaments[tournamentId];
+        for (uint256 i = 0; i < tournament.matchIds.length; i++) {
+            uint256 matchId = tournament.matchIds[i];
+            // Sum up all participants' scores for this match
+            mapping(address => uint256) storage matchScores = scores[tournamentId];
+            total += matchScores[msg.sender];
+        }
+        return total;
+    }
+
+    function getPlayerScore(
+        uint256 tournamentId, 
+        address player
+    ) external view returns (uint256) {
+        return scores[tournamentId][player];
+    }
+
+    // Admin management functions
+    function addTournamentAdmin(address admin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(admin != address(0), "Invalid admin address");
+        grantRole(TOURNAMENT_ADMIN, admin);
+    }
+
+    function removeTournamentAdmin(address admin) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(admin != address(0), "Invalid admin address");
+        revokeRole(TOURNAMENT_ADMIN, admin);
     }
 }

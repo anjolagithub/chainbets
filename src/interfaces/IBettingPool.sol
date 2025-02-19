@@ -37,6 +37,10 @@ interface IBettingPool {
         external;
 
     function placeBet(uint256 matchId, uint256 amount, uint8 prediction) external;
+    
+    // Tournament integration function
+    function placeTournamentBet(address user, uint256 matchId, uint8 prediction) external;
+    
     function finalizeMatch(uint256 matchId, uint8 winner) external;
     function claimWinnings(uint256 matchId) external;
 
