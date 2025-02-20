@@ -17,8 +17,8 @@ contract TournamentTest is Test {
     address public user1 = address(2);
     address public user2 = address(3);
 
-    uint256 constant INITIAL_BALANCE = 10000 * 10**18;
-    uint256 constant ENTRY_FEE = 10 * 10**18;
+    uint256 constant INITIAL_BALANCE = 10000 * 10 ** 18;
+    uint256 constant ENTRY_FEE = 10 * 10 ** 18;
 
     event TournamentCreated(uint256 indexed id, string name, uint256 startTime);
     event PlayerJoined(uint256 indexed tournamentId, address indexed player);
@@ -30,30 +30,30 @@ contract TournamentTest is Test {
         token = new MockOPToken();
         pool = new BettingPool(address(token));
         tournament = new Tournament(address(pool), address(token));
-        
+
         // Setup pool
         pool.setTournament(address(tournament));
-        
+
         // Transfer tokens to users
         token.transfer(user1, INITIAL_BALANCE);
         token.transfer(user2, INITIAL_BALANCE);
-        
+
         // Create matches for testing
         pool.createMatch(
-            "Test Match 1", 
-            block.timestamp + 1 hours, 
-            block.timestamp + 2 hours, 
-            1e18,  // minBet
+            "Test Match 1",
+            block.timestamp + 1 hours,
+            block.timestamp + 2 hours,
+            1e18, // minBet
             100e18 // maxBet
         );
         pool.createMatch(
-            "Test Match 2", 
-            block.timestamp + 2 hours, 
-            block.timestamp + 3 hours, 
-            1e18,  // minBet
+            "Test Match 2",
+            block.timestamp + 2 hours,
+            block.timestamp + 3 hours,
+            1e18, // minBet
             100e18 // maxBet
         );
-        
+
         vm.stopPrank();
     }
 
@@ -63,17 +63,13 @@ contract TournamentTest is Test {
         matchIds[1] = 2;
 
         vm.startPrank(admin);
-        
+
         // Test event emission
         vm.expectEmit(true, true, true, true);
         emit TournamentCreated(0, "Test Tournament", block.timestamp + 1 hours);
-        
+
         tournament.createTournament(
-            "Test Tournament",
-            block.timestamp + 1 hours,
-            block.timestamp + 3 hours,
-            ENTRY_FEE,
-            matchIds
+            "Test Tournament", block.timestamp + 1 hours, block.timestamp + 3 hours, ENTRY_FEE, matchIds
         );
 
         // Verify tournament creation
@@ -87,10 +83,10 @@ contract TournamentTest is Test {
 
         vm.startPrank(user1);
         token.approve(address(tournament), ENTRY_FEE);
-        
+
         vm.expectEmit(true, true, true, true);
         emit PlayerJoined(0, user1);
-        
+
         tournament.joinTournament(0);
         assertTrue(tournament.participants(0, user1));
         vm.stopPrank();
@@ -104,10 +100,10 @@ contract TournamentTest is Test {
         vm.startPrank(user1);
         token.approve(address(tournament), ENTRY_FEE);
         tournament.joinTournament(0);
-        
+
         vm.expectEmit(true, true, true, true);
         emit PredictionSubmitted(0, 1, user1);
-        
+
         tournament.submitPrediction(0, 1, 1); // Predict team A wins
         assertEq(tournament.predictions(0, user1, 1), 1);
         vm.stopPrank();
@@ -119,7 +115,7 @@ contract TournamentTest is Test {
 
         // Advance time and finalize match
         vm.warp(block.timestamp + 3 hours);
-        
+
         vm.startPrank(admin);
         pool.finalizeMatch(1, 1); // Team A wins
 
@@ -150,35 +146,23 @@ contract TournamentTest is Test {
 
         // Test invalid tournament creation scenarios
         vm.startPrank(admin);
-        
+
         // Invalid start time
         vm.expectRevert("Invalid start time");
         tournament.createTournament(
-            "Test Tournament",
-            block.timestamp - 1 hours,
-            block.timestamp + 2 hours,
-            ENTRY_FEE,
-            matchIds
+            "Test Tournament", block.timestamp - 1 hours, block.timestamp + 2 hours, ENTRY_FEE, matchIds
         );
 
         // Empty matches array
         uint256[] memory emptyMatchIds = new uint256[](0);
         vm.expectRevert("No matches provided");
         tournament.createTournament(
-            "Test Tournament",
-            block.timestamp + 1 hours,
-            block.timestamp + 2 hours,
-            ENTRY_FEE,
-            emptyMatchIds
+            "Test Tournament", block.timestamp + 1 hours, block.timestamp + 2 hours, ENTRY_FEE, emptyMatchIds
         );
 
         // Create a valid tournament for further tests
         tournament.createTournament(
-            "Test Tournament",
-            block.timestamp + 1 hours,
-            block.timestamp + 2 hours,
-            ENTRY_FEE,
-            matchIds
+            "Test Tournament", block.timestamp + 1 hours, block.timestamp + 2 hours, ENTRY_FEE, matchIds
         );
         vm.stopPrank();
 

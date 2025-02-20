@@ -10,7 +10,7 @@ contract CommunityHub is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable token;
-    
+
     // Referral system
     mapping(address => address) public referrers;
     mapping(address => uint256) public referralRewards;
@@ -18,7 +18,7 @@ contract CommunityHub is Ownable, ReentrancyGuard {
 
     // Reputation system
     mapping(address => uint256) public userReputation;
-    
+
     // Events
     event ReferralRegistered(address indexed referrer, address indexed referee);
     event RewardsDistributed(address indexed user, uint256 amount);
@@ -35,7 +35,7 @@ contract CommunityHub is Ownable, ReentrancyGuard {
 
         referrers[msg.sender] = referrer;
         referralCount[referrer]++;
-        
+
         // Initial reputation boost
         _updateReputation(referrer, 10);
         _updateReputation(msg.sender, 5);
@@ -43,7 +43,7 @@ contract CommunityHub is Ownable, ReentrancyGuard {
         emit ReferralRegistered(referrer, msg.sender);
     }
 
-    function distributeRewards(address user, uint256 amount) external  {
+    function distributeRewards(address user, uint256 amount) external {
         address referrer = referrers[user];
         if (referrer != address(0)) {
             uint256 referralReward = amount * 5 / 100; // 5% referral reward

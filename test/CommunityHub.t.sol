@@ -14,8 +14,8 @@ contract CommunityHubTest is Test {
     address public user2;
     address public user3;
 
-    uint256 constant INITIAL_BALANCE = 1000000 * 10**18;
-    uint256 constant LARGE_BALANCE = 10000000 * 10**18;
+    uint256 constant INITIAL_BALANCE = 1000000 * 10 ** 18;
+    uint256 constant LARGE_BALANCE = 10000000 * 10 ** 18;
 
     function setUp() public {
         // Set owner to the test contract deployer
@@ -45,7 +45,7 @@ contract CommunityHubTest is Test {
     function testReferralRegistration() public {
         vm.prank(user2);
         hub.registerReferral(user1);
-        
+
         assertEq(hub.referrers(user2), user1);
         assertEq(hub.getReferralCount(user1), 1);
         assertEq(hub.getReputation(user1), 10);
@@ -61,10 +61,10 @@ contract CommunityHubTest is Test {
         // Distribute rewards
         vm.startPrank(owner);
         token.transfer(address(hub), LARGE_BALANCE);
-        hub.distributeRewards(user2, 100 * 10**18);
+        hub.distributeRewards(user2, 100 * 10 ** 18);
         vm.stopPrank();
 
-        assertEq(hub.referralRewards(user1), 5 * 10**18);
+        assertEq(hub.referralRewards(user1), 5 * 10 ** 18);
     }
 
     function testMultipleReferrals() public {
@@ -79,28 +79,28 @@ contract CommunityHubTest is Test {
     }
 
     function testReputationGrowth() public {
-    vm.prank(user2);
-    hub.registerReferral(user1);
+        vm.prank(user2);
+        hub.registerReferral(user1);
 
-    // Approve and transfer tokens to hub
-    token.approve(address(hub), LARGE_BALANCE);
-    token.transfer(address(hub), LARGE_BALANCE);
+        // Approve and transfer tokens to hub
+        token.approve(address(hub), LARGE_BALANCE);
+        token.transfer(address(hub), LARGE_BALANCE);
 
-    // Initial reputation check
-    uint256 initialReputation = hub.getReputation(user1);
-    assertEq(initialReputation, 10, "Initial reputation should be 10");
+        // Initial reputation check
+        uint256 initialReputation = hub.getReputation(user1);
+        assertEq(initialReputation, 10, "Initial reputation should be 10");
 
-    // Distribute rewards as owner
-    vm.startPrank(owner);
-    for(uint i = 0; i < 5; i++) {
-        hub.distributeRewards(user2, 10 * 10**18);
-    }
-    vm.stopPrank();
+        // Distribute rewards as owner
+        vm.startPrank(owner);
+        for (uint256 i = 0; i < 5; i++) {
+            hub.distributeRewards(user2, 10 * 10 ** 18);
+        }
+        vm.stopPrank();
 
-    // Get new reputation
-    uint256 newReputation = hub.getReputation(user1);
+        // Get new reputation
+        uint256 newReputation = hub.getReputation(user1);
 
-    // Assert that reputation remains the same
-    assertEq(newReputation, initialReputation, "Reputation should not change");
+        // Assert that reputation remains the same
+        assertEq(newReputation, initialReputation, "Reputation should not change");
     }
 }

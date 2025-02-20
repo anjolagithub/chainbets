@@ -33,6 +33,7 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     // Events
     event TournamentSet(address indexed tournament);
     event CommunityHubSet(address indexed communityHub);
+    event DebugEvent(string message, uint256 value);
 
     // Modifiers
     modifier matchExists(uint256 matchId) {
@@ -54,7 +55,7 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         require(_bettingToken != address(0), "Invalid token address");
         bettingToken = IERC20(_bettingToken);
         protocolFee = 250; // Initialize at 2.5%
-        nextMatchId = 1;   // Initialize at 1
+        nextMatchId = 1; // Initialize at 1
     }
 
     // Explicit getter functions
@@ -80,13 +81,10 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     }
 
     // Match Management Functions
-    function createMatch(
-        string memory name,
-        uint256 startTime,
-        uint256 endTime,
-        uint256 minBet,
-        uint256 maxBet
-    ) external override {
+    function createMatch(string memory name, uint256 startTime, uint256 endTime, uint256 minBet, uint256 maxBet)
+        external
+        override
+    {
         require(bytes(name).length > 0, "Invalid name");
         require(startTime > block.timestamp, "Invalid start time");
         require(endTime > startTime, "Invalid end time");
@@ -110,14 +108,7 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         emit MatchCreated(matchId, name, startTime);
     }
 
-    
-
-
-    function validateBetParameters(
-        uint256 matchId,
-        uint256 amount,
-        uint8 prediction
-    ) public view returns (bool) {
+    function validateBetParameters(uint256 matchId, uint256 amount, uint8 prediction) public view returns (bool) {
         require(bettingToken.balanceOf(msg.sender) >= amount, "Insufficient token balance");
         require(bettingToken.allowance(msg.sender, address(this)) >= amount, "Insufficient token allowance");
         require(matchId > 0 && matchId < nextMatchId && matches[matchId].id == matchId, "Match does not exist");
@@ -130,77 +121,59 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         return true;
     }
 
-  function placeBet(
-    uint256 matchId,
-    uint256 amount,
-    uint8 prediction
-) external override nonReentrant whenNotPaused {
-    // All validations first
-    require(matchId > 0 && matchId < nextMatchId && matches[matchId].id == matchId, "Match does not exist");
-    Match storage match_ = matches[matchId];
-    require(block.timestamp < match_.startTime, "Match already started");
-    require(prediction == 1 || prediction == 2, "Invalid prediction");
-    require(amount > 0, "Invalid amount");
-    require(amount >= match_.minBet, "Bet too small");
-    require(amount <= match_.maxBet, "Bet too large");
-    require(userBets[matchId][msg.sender].amount == 0, "Already bet on this match");
+    function placeBet(uint256 matchId, uint256 amount, uint8 prediction) external override nonReentrant whenNotPaused {
+        emit DebugEvent("Entered placeBet", matchId);
 
-    // Token checks
-    require(bettingToken.balanceOf(msg.sender) >= amount, "Insufficient token balance");
-    require(bettingToken.allowance(msg.sender, address(this)) >= amount, "Insufficient token allowance");
+        require(matchId > 0 && matchId < nextMatchId && matches[matchId].id == matchId, "Match does not exist");
+        emit DebugEvent("Match exists", matchId);
 
-    // Execute the token transfer first
-    bettingToken.safeTransferFrom(msg.sender, address(this), amount);
+        Match storage match_ = matches[matchId];
+        require(block.timestamp < match_.startTime, "Match already started");
+        emit DebugEvent("Match not started", match_.startTime);
 
-    // Only after successful transfer, update state
-    userBets[matchId][msg.sender] = Bet({
-        user: msg.sender,
-        matchId: matchId,
-        amount: amount,
-        prediction: prediction,
-        claimed: false
-    });
+        require(prediction == 1 || prediction == 2, "Invalid prediction");
+        emit DebugEvent("Prediction valid", prediction);
 
-    if (prediction == 1) {
-        match_.totalPoolA += amount;
-    } else {
-        match_.totalPoolB += amount;
+        require(amount > 0, "Invalid amount");
+        emit DebugEvent("Amount valid", amount);
+
+        require(amount >= match_.minBet, "Bet too small");
+        require(amount <= match_.maxBet, "Bet too large");
+        emit DebugEvent("Bet within limits", amount);
+
+        require(userBets[matchId][msg.sender].amount == 0, "Already bet on this match");
+        emit DebugEvent("No duplicate bet", matchId);
+
+        uint256 userBalance = bettingToken.balanceOf(msg.sender);
+        uint256 userAllowance = bettingToken.allowance(msg.sender, address(this));
+        require(userBalance >= amount, "Insufficient token balance");
+        require(userAllowance >= amount, "Insufficient token allowance");
+        emit DebugEvent("Balance and allowance valid", userBalance);
+
+        bettingToken.safeTransferFrom(msg.sender, address(this), amount);
+        emit DebugEvent("Token transfer successful", amount);
+
+        userBets[matchId][msg.sender] =
+            Bet({user: msg.sender, matchId: matchId, amount: amount, prediction: prediction, claimed: false});
+
+        if (prediction == 1) {
+            match_.totalPoolA += amount;
+        } else {
+            match_.totalPoolB += amount;
+        }
+
+        userBetHistory[msg.sender].push(matchId);
+        emit DebugEvent("State updated", matchId);
+
+        if (communityHub != address(0)) {
+            ICommunityHub(communityHub).updateUserActivity(msg.sender, amount);
+            emit DebugEvent("Community hub updated", amount);
+        }
+
+        emit BetPlaced(matchId, msg.sender, amount, prediction);
     }
 
-    userBetHistory[msg.sender].push(matchId);
-
-    // External call last
-    if (communityHub != address(0)) {
-        ICommunityHub(communityHub).updateUserActivity(msg.sender, amount);
-    }
-
-    emit BetPlaced(matchId, msg.sender, amount, prediction);
-}
-function placeTournamentBet(
-    address user,
-    uint256 matchId,
-    uint8 prediction
-) external matchExists(matchId) matchNotStarted(matchId) {
-    require(msg.sender == tournament, "Only tournament");
-    
-    // Record bet without token transfer
-    userBets[matchId][user] = Bet({
-        user: user,
-        matchId: matchId,
-        amount: 0, // Tournament bets don't lock tokens
-        prediction: prediction,
-        claimed: false
-    });
-
-    userBetHistory[user].push(matchId);
-
-    emit BetPlaced(matchId, user, 0, prediction);
-}
-
-    function finalizeMatch(
-        uint256 matchId,
-        uint8 winner
-    ) external override matchExists(matchId) matchEnded(matchId) {
+    function finalizeMatch(uint256 matchId, uint8 winner) external override matchExists(matchId) matchEnded(matchId) {
         Match storage match_ = matches[matchId];
         require(!match_.isFinalized, "Match already finalized");
         require(winner == 1 || winner == 2, "Invalid winner");
@@ -255,17 +228,18 @@ function placeTournamentBet(
         return userBetHistory[user];
     }
 
-    function calculatePotentialWinnings(
-        uint256 matchId,
-        uint256 amount,
-        uint8 prediction
-    ) external view override returns (uint256) {
+    function calculatePotentialWinnings(uint256 matchId, uint256 amount, uint8 prediction)
+        external
+        view
+        override
+        returns (uint256)
+    {
         Match storage match_ = matches[matchId];
         uint256 relevantPool = prediction == 1 ? match_.totalPoolA : match_.totalPoolB;
         uint256 totalPool = match_.totalPoolA + match_.totalPoolB;
-        
+
         if (relevantPool == 0) return amount * 2; // Initial odds 1:1
-        
+
         uint256 potentialWinnings = (amount * totalPool) / relevantPool;
         uint256 fee = (potentialWinnings * protocolFee) / 10000;
         return potentialWinnings - fee;
@@ -291,7 +265,7 @@ function placeTournamentBet(
         IERC20 tokenContract = IERC20(token);
         uint256 balance = tokenContract.balanceOf(address(this));
         require(balance > 0, "No balance to withdraw");
-        
+
         tokenContract.safeTransfer(owner(), balance);
         emit EmergencyWithdraw(token, balance);
     }
