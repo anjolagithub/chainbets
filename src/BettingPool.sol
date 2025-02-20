@@ -112,43 +112,47 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
 
     
 
-function placeBet(
+
+    function validateBetParameters(
+        uint256 matchId,
+        uint256 amount,
+        uint8 prediction
+    ) public view returns (bool) {
+        require(bettingToken.balanceOf(msg.sender) >= amount, "Insufficient token balance");
+        require(bettingToken.allowance(msg.sender, address(this)) >= amount, "Insufficient token allowance");
+        require(matchId > 0 && matchId < nextMatchId && matches[matchId].id == matchId, "Match does not exist");
+        require(block.timestamp < matches[matchId].startTime, "Match already started");
+        require(prediction == 1 || prediction == 2, "Invalid prediction");
+        require(amount > 0, "Invalid amount");
+        require(amount >= matches[matchId].minBet, "Bet too small");
+        require(amount <= matches[matchId].maxBet, "Bet too large");
+        require(userBets[matchId][msg.sender].amount == 0, "Already bet on this match");
+        return true;
+    }
+
+  function placeBet(
     uint256 matchId,
     uint256 amount,
     uint8 prediction
 ) external override nonReentrant whenNotPaused {
-    // Match existence validation
+    // All validations first
     require(matchId > 0 && matchId < nextMatchId && matches[matchId].id == matchId, "Match does not exist");
     Match storage match_ = matches[matchId];
-
-    // Match timing validation
     require(block.timestamp < match_.startTime, "Match already started");
-
-    // Bet parameter validation
     require(prediction == 1 || prediction == 2, "Invalid prediction");
     require(amount > 0, "Invalid amount");
     require(amount >= match_.minBet, "Bet too small");
     require(amount <= match_.maxBet, "Bet too large");
     require(userBets[matchId][msg.sender].amount == 0, "Already bet on this match");
 
-    // Token validation
-    uint256 allowance = bettingToken.allowance(msg.sender, address(this));
-    require(allowance >= amount, "Insufficient token allowance");
+    // Token checks
+    require(bettingToken.balanceOf(msg.sender) >= amount, "Insufficient token balance");
+    require(bettingToken.allowance(msg.sender, address(this)) >= amount, "Insufficient token allowance");
 
-    uint256 balance = bettingToken.balanceOf(msg.sender);
-    require(balance >= amount, "Insufficient token balance");
-
-    // Transfer tokens
+    // Execute the token transfer first
     bettingToken.safeTransferFrom(msg.sender, address(this), amount);
 
-    // Update pool totals
-    if (prediction == 1) {
-        match_.totalPoolA += amount;
-    } else {
-        match_.totalPoolB += amount;
-    }
-
-    // Record bet
+    // Only after successful transfer, update state
     userBets[matchId][msg.sender] = Bet({
         user: msg.sender,
         matchId: matchId,
@@ -157,36 +161,41 @@ function placeBet(
         claimed: false
     });
 
+    if (prediction == 1) {
+        match_.totalPoolA += amount;
+    } else {
+        match_.totalPoolB += amount;
+    }
+
     userBetHistory[msg.sender].push(matchId);
 
-    // Notify community hub
+    // External call last
     if (communityHub != address(0)) {
         ICommunityHub(communityHub).updateUserActivity(msg.sender, amount);
     }
 
     emit BetPlaced(matchId, msg.sender, amount, prediction);
 }
+function placeTournamentBet(
+    address user,
+    uint256 matchId,
+    uint8 prediction
+) external matchExists(matchId) matchNotStarted(matchId) {
+    require(msg.sender == tournament, "Only tournament");
     
-    function placeTournamentBet(
-        address user,
-        uint256 matchId,
-        uint8 prediction
-    ) external matchExists(matchId) matchNotStarted(matchId) {
-        require(msg.sender == tournament, "Only tournament");
-        
-        // Record bet without token transfer
-        userBets[matchId][user] = Bet({
-            user: user,
-            matchId: matchId,
-            amount: 0, // Tournament bets don't lock tokens
-            prediction: prediction,
-            claimed: false
-        });
+    // Record bet without token transfer
+    userBets[matchId][user] = Bet({
+        user: user,
+        matchId: matchId,
+        amount: 0, // Tournament bets don't lock tokens
+        prediction: prediction,
+        claimed: false
+    });
 
-        userBetHistory[user].push(matchId);
+    userBetHistory[user].push(matchId);
 
-        emit BetPlaced(matchId, user, 0, prediction);
-    }
+    emit BetPlaced(matchId, user, 0, prediction);
+}
 
     function finalizeMatch(
         uint256 matchId,
