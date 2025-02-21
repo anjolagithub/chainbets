@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {Console} from "forge-std/console.sol";
 import {BettingPool} from "../src/BettingPool.sol";
 import {BetManager} from "../src/BetManager.sol";
 import {IBettingPool} from "../src/interfaces/IBettingPool.sol";
@@ -11,6 +10,8 @@ import {MockTournament} from "./mocks/MockTournament.sol";
 import {MockCommunityHub} from "./mocks/MockCommunityHub.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
+import "forge-std/console2.sol"; // Correct import statement
+
 
 contract BettingPoolTest is Test {
     BettingPool public pool;
@@ -406,8 +407,8 @@ contract BettingPoolTest is Test {
         vm.startPrank(user1);
         token.approve(address(pool), BET_AMOUNT);
 
-        console.log("User balance before bet:", token.balanceOf(user1));
-        console.log("User allowance before bet:", token.allowance(user1, address(pool)));
+        console2.log("User balance before bet:", token.balanceOf(user1));
+        console2.log("User allowance before bet:", token.allowance(user1, address(pool)));
 
         vm.expectEmit(true, true, true, true);
         emit BetPlaced(1, user1, BET_AMOUNT, 1);
@@ -417,8 +418,8 @@ contract BettingPoolTest is Test {
         assertEq(bet.amount, BET_AMOUNT);
         assertEq(bet.prediction, 1);
 
-        console.log("User balance after bet:", token.balanceOf(user1));
-        console.log("User allowance after bet:", token.allowance(user1, address(pool)));
+        console2.log("User balance after bet:", token.balanceOf(user1));
+        console2.log("User allowance after bet:", token.allowance(user1, address(pool)));
 
         vm.stopPrank();
     }

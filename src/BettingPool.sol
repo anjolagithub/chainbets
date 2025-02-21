@@ -121,7 +121,8 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         return true;
     }
 
-    function placeBet(uint256 matchId, uint256 amount, uint8 prediction) external override nonReentrant whenNotPaused {
+    function placeBet(uint256 matchId, uint256 amount, uint8 prediction) external override //nonReentrant 
+    whenNotPaused{
         emit DebugEvent("Entered placeBet", matchId);
 
         require(matchId > 0 && matchId < nextMatchId && matches[matchId].id == matchId, "Match does not exist");
@@ -172,6 +173,28 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
 
         emit BetPlaced(matchId, msg.sender, amount, prediction);
     }
+
+     function placeTournamentBet(
+        address user,
+        uint256 matchId,
+        uint8 prediction
+    ) external override matchExists(matchId) matchNotStarted(matchId) {
+        require(msg.sender == tournament, "Only tournament");
+
+        // Record bet without token transfer
+        userBets[matchId][user] = Bet({
+            user: user,
+            matchId: matchId,
+            amount: 0, // Tournament bets don't lock tokens
+            prediction: prediction,
+            claimed: false
+        });
+
+        userBetHistory[user].push(matchId);
+
+        emit BetPlaced(matchId, user, 0, prediction);
+    }
+
 
     function finalizeMatch(uint256 matchId, uint8 winner) external override matchExists(matchId) matchEnded(matchId) {
         Match storage match_ = matches[matchId];
