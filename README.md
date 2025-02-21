@@ -132,7 +132,3 @@ forge script script/Deploy.s.sol:DeployChainBets \
 ## License
 MIT License
 
-Would you like me to:
-1. Add more technical details?
-2. Include specific integration guides?
-3. Add additional sections?
