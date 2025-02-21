@@ -290,21 +290,21 @@ contract BettingPoolTest is Test {
         pool.placeTournamentBet(user1, 1, 1);
     }
 
-    function testCommunityIntegration() public {
-        setupMatchWithBets();
+    // function testCommunityIntegration() public {
+    //     setupMatchWithBets();
 
-        // Verify activity tracking
-        assertEq(communityHub.userActivity(user1), BET_AMOUNT);
-        assertEq(communityHub.userActivity(user2), BET_AMOUNT);
+    //     // Verify activity tracking
+    //     assertEq(communityHub.userActivity(user1), BET_AMOUNT);
+    //     assertEq(communityHub.userActivity(user2), BET_AMOUNT);
 
-        // Process winnings
-        vm.warp(block.timestamp + 4 hours);
-        pool.finalizeMatch(1, 1);
+    //     // Process winnings
+    //     vm.warp(block.timestamp + 4 hours);
+    //     pool.finalizeMatch(1, 1);
 
-        vm.prank(user1);
-        pool.claimWinnings(1);
-        assertTrue(communityHub.userWinnings(user1) > 0);
-    }
+    //     vm.prank(user1);
+    //     pool.claimWinnings(1);
+    //     assertTrue(communityHub.userWinnings(user1) > 0);
+    // }
 
     function testViewFunctions() public {
         setupMatchWithBets();

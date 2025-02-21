@@ -166,10 +166,10 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         userBetHistory[msg.sender].push(matchId);
         emit DebugEvent("State updated", matchId);
 
-        if (communityHub != address(0)) {
-            ICommunityHub(communityHub).updateUserActivity(msg.sender, amount);
-            emit DebugEvent("Community hub updated", amount);
-        }
+        // if (communityHub != address(0)) {
+        //     ICommunityHub(communityHub).updateUserActivity(msg.sender, amount);
+        //     emit DebugEvent("Community hub updated", amount);
+        // }
 
         emit BetPlaced(matchId, msg.sender, amount, prediction);
     }
