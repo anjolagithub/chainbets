@@ -9,8 +9,9 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IBettingPool} from "./interfaces/IBettingPool.sol";
 
 interface ICommunityHub {
-    function updateUserActivity(address user, uint256 amount) external;
-    function processWinnings(address user, uint256 amount) external;
+    function distributeRewards(address user, uint256 amount) external;
+   // function updateUserActivity(address user, uint256 amount) external;
+   // function processWinnings(address user, uint256 amount) external;
 }
 
 contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
@@ -232,7 +233,7 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
 
         // Notify community hub if set
         if (communityHub != address(0)) {
-            ICommunityHub(communityHub).processWinnings(msg.sender, winnings);
+            ICommunityHub(communityHub).distributeRewards(msg.sender, winnings);
         }
 
         emit WinningsClaimed(matchId, msg.sender, winnings);
