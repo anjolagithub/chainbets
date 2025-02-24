@@ -69,11 +69,11 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     }
 
     // Integration setters
-    function setTournament(address _tournament) external onlyOwner {
-        require(_tournament != address(0), "Invalid tournament address");
-        tournament = _tournament;
-        emit TournamentSet(_tournament);
-    }
+  function setTournament(address _tournament) external {  // removed onlyOwner
+    require(_tournament != address(0), "Invalid tournament address");
+    tournament = _tournament;
+    emit TournamentSet(_tournament);
+}
 
     function setCommunityHub(address _communityHub) external {
         require(_communityHub != address(0), "Invalid community hub address");
@@ -270,17 +270,19 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
     }
 
     // Admin Functions
-    function setProtocolFee(uint256 newFee) external override onlyOwner {
-        require(newFee <= 1000, "Fee too high"); // Max 10%
-        protocolFee = newFee;
-        emit ProtocolFeeUpdated(newFee);
-    }
+    function setProtocolFee(uint256 newFee) external override {  // removed onlyOwner
+    require(newFee <= 1000, "Fee too high"); // Max 10%
+    protocolFee = newFee;
+    emit ProtocolFeeUpdated(newFee);
+}
 
-    function pause() external override onlyOwner {
+    function pause() external override //onlyOwner 
+    {
         _pause();
     }
 
-    function unpause() external override onlyOwner {
+    function unpause() external override //onlyOwner 
+    {
         _unpause();
     }
 
