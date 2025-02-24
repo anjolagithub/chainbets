@@ -4,9 +4,9 @@ ChainBets is a decentralized betting platform built on Ancient8 Chain, enabling 
 
 ## Deployed Contracts (Ancient8 Testnet)
 
-- **BettingPool**: `0xdeE81605375942895d01c030a39E4F54B6D8b015`
-- **Tournament**: `0x989843eF8A89F9F8A55835b535B1775409FDBEbc`
-- **CommunityHub**: `0x149A3dbb7C92DF2341845e495950EF91E461FbE3`
+- **BettingPool**: `0x7de40c5d75a80167FA9F5b2057E7Efb7745a42e7`
+- **Tournament**: `0xE0D3484017edE44614ae58621df055c078F3F719`
+- **CommunityHub**: `0x5e526D7921654AC7C190547053bD906fCbe1944a`
 - **WETH Token**: `0x4200000000000000000000000000000000000006`
 
 ## Features
