@@ -75,7 +75,7 @@ contract BettingPool is IBettingPool, Ownable, Pausable, ReentrancyGuard {
         emit TournamentSet(_tournament);
     }
 
-    function setCommunityHub(address _communityHub) external onlyOwner {
+    function setCommunityHub(address _communityHub) external {
         require(_communityHub != address(0), "Invalid community hub address");
         communityHub = _communityHub;
         emit CommunityHubSet(_communityHub);

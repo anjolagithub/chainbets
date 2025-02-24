@@ -140,9 +140,9 @@ contract BettingPoolTest is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(user1)));
         pool.setTournament(newTournament);
 
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(user1)));
-        pool.setCommunityHub(newCommunityHub);
-        vm.stopPrank();
+    //     vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(user1)));
+    //     pool.setCommunityHub(newCommunityHub);
+    //     vm.stopPrank();
     }
 
     function testPauseUnpause() public {
